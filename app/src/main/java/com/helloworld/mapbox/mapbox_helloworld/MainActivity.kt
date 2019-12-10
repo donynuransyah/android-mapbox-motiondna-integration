@@ -1,49 +1,71 @@
 package com.helloworld.mapbox.mapbox_helloworld
 
-import android.support.v7.app.AppCompatActivity
+import android.content.DialogInterface
 import android.os.Bundle
-import com.mapbox.android.core.permissions.PermissionsListener
+import android.util.Log
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import com.mapbox.mapboxsdk.Mapbox
+import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.maps.MapView
 import com.mapbox.mapboxsdk.maps.MapboxMap
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback
-import com.mapbox.android.core.permissions.PermissionsManager
-
-import android.support.v4.app.ActivityCompat
-import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode
-import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin
-import com.navisens.motiondnaapi.MotionDnaApplication
-import android.widget.Toast
 import com.mapbox.mapboxsdk.plugins.building.BuildingPlugin
+import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin
+import com.mapbox.mapboxsdk.plugins.locationlayer.OnCameraTrackingChangedListener
+import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode
+import com.navisens.motiondnaapi.MotionDna
+import com.navisens.motiondnaapi.MotionDnaApplication
+import timber.log.Timber
 
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
+    private lateinit var latLan: LatLng
     lateinit var mapboxMap: MapboxMap
     lateinit var buildingPlugin: BuildingPlugin
-    lateinit var motionDnaRuntimeSource: MotionDnaDataSource
+    var motionDnaRuntimeSource: MotionDnaDataSource? = null
 
     // Your Navisens developer key
-    val navisensDevKey = "NAVISENS_DEVELOPER_KEY"
+    val navisensDevKey = "s1Oz2c0TCwZYvjvBeOUeq8dGlzkAM6OaE10e2YKsFpULyxAqxDNqbV2Mz3K1Li9I"
 
     // Your mapbox token
-    val mapBoxToken = "MAPBOX_TOKEN"
-
-
+    val mapBoxToken = "pk.eyJ1IjoiZG9ueW51cmFuc3lhaCIsImEiOiJjajNwMTBtdTYwMHAwMnduNGxybzdid2Z4In0.tjLzArV7DvhF9Nr1jxX4nQ"
 
 
     override fun onMapReady(mapboxMap: MapboxMap?) {
 //        LocationPluginActivity.this.mapboxMap = mapboxMap;
         this.mapboxMap = mapboxMap!!
-
         // Request Navisens MotionDna permissions
-
         ActivityCompat.requestPermissions(this, MotionDnaApplication.needsRequestingPermissions(), REQUEST_MDNA_PERMISSIONS)
-
         // Enable 3D buildings, why? Because it's cool.
         buildingPlugin = BuildingPlugin(mapView, this.mapboxMap)
         buildingPlugin.setVisibility(true)
+
+
+        val dialogClickListener = DialogInterface.OnClickListener { dialog, which ->
+            when (which) {
+                DialogInterface.BUTTON_POSITIVE -> {
+                    motionDnaRuntimeSource?.locationChange(latLan)
+                }
+                DialogInterface.BUTTON_NEGATIVE -> {
+                }
+            }
+        }
+        this.mapboxMap.addOnMapLongClickListener {
+            latLan = it
+            val builder: AlertDialog.Builder = AlertDialog.Builder(this@MainActivity)
+            builder.setMessage("Sync your location to this position ?")
+                    .setPositiveButton("Yes", dialogClickListener)
+                    .setNegativeButton("No", dialogClickListener)
+                    .show()
+        }
+
+        initNavi()
     }
 
     companion object {
@@ -52,38 +74,71 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         // Method called when permissions have been confirmed
-
         // Instantiating MotionDnaDataSource, passing in context, packagemanager and Navisens devkey
-        motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, navisensDevKey)
-
-        // Overridding internal data source with MotionDna data source.
-        val locationLayerPlugin = LocationLayerPlugin(mapView, this.mapboxMap, motionDnaRuntimeSource)
-
-        //Follow positioning
-        locationLayerPlugin.cameraMode = CameraMode.TRACKING
-
-        // Renders position only not heading.
-        locationLayerPlugin.renderMode=RenderMode.NORMAL
-        lifecycle.addObserver(locationLayerPlugin)
-
+//        initNavi()
+        Toast.makeText(applicationContext, "woW", Toast.LENGTH_LONG).show()
     }
 
-    lateinit var mapView : MapView
+    private fun initNavi() {
+        try {
+            motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, navisensDevKey, object : MotionDnaDataSource.logListener {
+                override fun log(log: MotionDna) {
+                    val logs = "Type : ${log.motion.motionType}\n" +
+                            "Step : ${log.motion.stepFrequency}\n" +
+                            "Magnetic : ${log.gpsLocation.magneticHeading}\n" +
+                            "Calibration : ${log.calibrationStatus}\n" +
+                            "lats : ${log.map.lats}\n" +
+                            "langs : ${log.map.lngs}\n" +
+                            "localHeading : ${log.location.localHeading}\n"+
+                            "x : ${log.location.localLocation.x}\n"+
+                            "y : ${log.location.localLocation.y}\n"+
+                            "z : ${log.location.localLocation.z}\n"+
+                            "heading : ${log.location.heading}\n"
+                    findViewById<TextView>(R.id.logCat).text = logs
+                }
+            })
+            // Overridding internal data source with MotionDna data source.
+            LocationLayerPlugin(mapView, this.mapboxMap, motionDnaRuntimeSource).also {
+                //Follow positioning
+                it.cameraMode = CameraMode.TRACKING
+                // Renders position only not heading.
+                it.renderMode = RenderMode.NORMAL
+                lifecycle.addObserver(it)
+                it.addOnLocationStaleListener {
+                    //                    Toast.makeText(this@MainActivity, it.toString(), Toast.LENGTH_SHORT).show()
+                }
+                it.addOnLocationLongClickListener {
+                    //sync
+                    motionDnaRuntimeSource?.syncWithGPS()
+                    Toast.makeText(this@MainActivity, "Long Click", Toast.LENGTH_SHORT).show()
+                }
+                it.addOnCameraTrackingChangedListener(object : OnCameraTrackingChangedListener {
+                    override fun onCameraTrackingChanged(currentMode: Int) {
+                        Toast.makeText(this@MainActivity, currentMode.toString(), Toast.LENGTH_SHORT).show()
+                    }
+
+                    override fun onCameraTrackingDismissed() {
+
+                    }
+                })
+            }
+
+        } catch (exception: Exception) {
+            Log.e(javaClass.simpleName, exception.toString())
+        }
+    }
+
+    lateinit var mapView: MapView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-
-        Mapbox.getInstance(this, mapBoxToken)
-
         setContentView(R.layout.activity_main)
-
-
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
+        Mapbox.getInstance(this, mapBoxToken)
         mapView = findViewById(R.id.mapView)
-
         mapView.onCreate(savedInstanceState)
-
-        // Initiate map ready callback.
         mapView.getMapAsync(this);
     }
 
