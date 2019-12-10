@@ -49,6 +49,9 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         fun log(log: MotionDna)
     }
 
+    private val meter = 1000
+    val rearth = 6378.137
+    val pi = Math.PI
     private var locationchange: Boolean = false
     private var syncGPS: Boolean = false
     private var latLng: LatLng? = null
@@ -106,7 +109,10 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
     @SuppressLint("LogNotTimber")
     override fun receiveMotionDna(motionDna: MotionDna?) {
         Timber.e("Sync GPS : $syncGPS")
-        Timber.e("location Change : $locationchange")
+        Timber.e("Sync GPS lat : ${motionDna?.getGPSLocation()?.globalLocation!!.latitude}")
+        Timber.e("Sync GPS lon : ${motionDna.getGPSLocation()?.globalLocation!!.longitude}")
+        Timber.e("Sync Local lat : ${motionDna.getLocalLocation()?.globalLocation!!.latitude}")
+        Timber.e("Sync Local lon : ${motionDna.getLocalLocation()?.globalLocation!!.longitude}")
 
         var location = Location("NAVISENS_LOCATION_PROVIDER")
         motionDna?.let { log.log(it) }
@@ -114,8 +120,8 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
             motionDna?.let {
                 //Sync with currency Location
                 location.reset()
-                location.latitude = it.gpsLocation?.globalLocation?.latitude!! + it.location.localLocation.x
-                location.longitude = it.gpsLocation?.globalLocation?.longitude!! + it.location.localLocation.y
+                location.latitude = it.gpsLocation?.globalLocation?.latitude!!
+                location.longitude = it.gpsLocation?.globalLocation?.longitude!!
             }
             locationchange = false
             syncGPS = false
@@ -132,22 +138,20 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
                 app.setLocationLatitudeLongitudeAndHeadingInDegrees(location.latitude, location.longitude, 315.0)
 
                 if (it.movedSuccess()) {
-                    it.location?.localLocation?.y = location.latitude
-                    it.location?.localLocation?.x = location.longitude
                     locationchange = false
                 }
             }
         } else {
             Timber.e("${latLng?.latitude} : ${location.latitude} : ${motionDna?.location?.globalLocation?.latitude!!}: ${motionDna?.gpsLocation?.globalLocation?.latitude!!}")
             motionDna?.let {
-                val dy = it.location?.localLocation?.y!! / 1000
-                val dx = it.location?.localLocation?.x!! / 1000
-                val rearth = 6378.137
-                val pi = Math.PI
+                val dy = it.location?.localLocation?.y!! / meter
+                val dx = it.location?.localLocation?.x!! / meter
                 val latitude = it.location?.globalLocation?.latitude!!
                 val longitude = it.location?.globalLocation?.longitude!!
+
                 val newLatitude = latitude + (dy / rearth) * (180 / pi)
                 val newLongitude = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
+
                 location.latitude = newLatitude
                 location.longitude = newLongitude
             }
@@ -169,6 +173,14 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
             locationListeners[i].onLocationChanged(location)
             ++i
         }
+    }
+
+    fun MotionDna.getLocalLocation(): MotionDna.Location? {
+        return this.location
+    }
+
+    fun MotionDna.getGPSLocation(): MotionDna.Location? {
+        return this.gpsLocation
     }
 
     private fun MotionDna.movedSuccess(): Boolean {

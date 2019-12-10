@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 //Follow positioning
                 it.cameraMode = CameraMode.TRACKING
                 // Renders position only not heading.
-                it.renderMode = RenderMode.COMPASS
+                it.renderMode = RenderMode.GPS
                 lifecycle.addObserver(it)
                 it.addOnLocationLongClickListener {
                     //sync
