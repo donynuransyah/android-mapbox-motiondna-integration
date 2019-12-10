@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
-import android.os.Handler
 import android.util.Log
 import com.mapbox.android.core.location.LocationEngine
 import com.mapbox.mapboxsdk.geometry.LatLng
@@ -13,6 +12,9 @@ import com.navisens.motiondnaapi.MotionDna
 import com.navisens.motiondnaapi.MotionDnaApplication
 import com.navisens.motiondnaapi.MotionDnaInterface
 import timber.log.Timber
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import kotlin.math.cos
 
 class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
 
@@ -69,11 +71,11 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         // Instantiating inertial engine
         app.runMotionDna(devKey)
         // Enabling GPS receivers within SDK.
-//        app.setExternalPositioningState(MotionDna.ExternalPositioningState.HIGH_ACCURACY)
+        app.setExternalPositioningState(MotionDna.ExternalPositioningState.HIGH_ACCURACY)
         // Trigger inertial engine to run with global positional corrections.
-//        app.setLocationNavisens()
+        app.setLocationNavisens()
         // Trigger inertial engine to run in pure inertial from given lat lon and heading.
-//        app.setLocationLatitudeLongitudeAndHeadingInDegrees(37.787742, -122.396859, 315.0)
+//        app.setLocationLatitudeLongitudeAndHeadingInDegrees(-6.31694, 106.66417, 315.0)
     }
 
 
@@ -107,25 +109,17 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         Timber.e("location Change : $locationchange")
 
         var location = Location("NAVISENS_LOCATION_PROVIDER")
-
-//        motionDna?.let {
-//            if (location.movedSuccess()) {
-//                locationchange = false
-//            }
-//        }
-
         motionDna?.let { log.log(it) }
-//        if (syncGPS) {
-//            motionDna?.let {
-//                //Sync with currency Location
-//                location.reset()
-//                location.latitude = it.gpsLocation?.globalLocation?.latitude!!
-//                location.longitude = it.gpsLocation?.globalLocation?.longitude!!
-//            }
-//            locationchange = false
-//            syncGPS = false
-//        } else
-        if (locationchange) {
+        if (syncGPS) {
+            motionDna?.let {
+                //Sync with currency Location
+                location.reset()
+                location.latitude = it.gpsLocation?.globalLocation?.latitude!! + it.location.localLocation.x
+                location.longitude = it.gpsLocation?.globalLocation?.longitude!! + it.location.localLocation.y
+            }
+            locationchange = false
+            syncGPS = false
+        } else if (locationchange) {
             motionDna?.let {
                 it.location.localLocation.clear()
                 location.reset()
@@ -134,20 +128,28 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
 
                 location.latitude = latLng?.latitude!!
                 location.longitude = latLng?.longitude!!
-                Timber.e("${latLng?.latitude} : ${location.latitude}")
-//                app.setLocationLatitudeLongitude(location.latitude, location.longitude)
-//                app.setLocationLatitudeLongitudeAndHeadingInDegrees(location.latitude, location.longitude, 315.0)
+                app.setLocationLatitudeLongitude(location.latitude, location.longitude)
+                app.setLocationLatitudeLongitudeAndHeadingInDegrees(location.latitude, location.longitude, 315.0)
+
                 if (it.movedSuccess()) {
-                    location.latitude = it.location?.localLocation?.y!!
-                    location.longitude = it.location?.localLocation?.x!!
+                    it.location?.localLocation?.y = location.latitude
+                    it.location?.localLocation?.x = location.longitude
                     locationchange = false
                 }
             }
         } else {
             Timber.e("${latLng?.latitude} : ${location.latitude} : ${motionDna?.location?.globalLocation?.latitude!!}: ${motionDna?.gpsLocation?.globalLocation?.latitude!!}")
             motionDna?.let {
-                location.latitude = it.location?.localLocation?.y!!
-                location.longitude = it.location?.localLocation?.x!!
+                val dy = it.location?.localLocation?.y!! / 1000
+                val dx = it.location?.localLocation?.x!! / 1000
+                val rearth = 6378.137
+                val pi = Math.PI
+                val latitude = it.location?.globalLocation?.latitude!!
+                val longitude = it.location?.globalLocation?.longitude!!
+                val newLatitude = latitude + (dy / rearth) * (180 / pi)
+                val newLongitude = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
+                location.latitude = newLatitude
+                location.longitude = newLongitude
             }
         }
 

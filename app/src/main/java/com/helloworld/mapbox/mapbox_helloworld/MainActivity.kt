@@ -21,11 +21,12 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode
 import com.navisens.motiondnaapi.MotionDna
 import com.navisens.motiondnaapi.MotionDnaApplication
 import timber.log.Timber
+import kotlin.math.roundToInt
 
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
-    private lateinit var latLan: LatLng
+    private var latLan: LatLng? = null
     lateinit var mapboxMap: MapboxMap
     lateinit var buildingPlugin: BuildingPlugin
     var motionDnaRuntimeSource: MotionDnaDataSource? = null
@@ -38,7 +39,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
     override fun onMapReady(mapboxMap: MapboxMap?) {
-//        LocationPluginActivity.this.mapboxMap = mapboxMap;
         this.mapboxMap = mapboxMap!!
         // Request Navisens MotionDna permissions
         ActivityCompat.requestPermissions(this, MotionDnaApplication.needsRequestingPermissions(), REQUEST_MDNA_PERMISSIONS)
@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         val dialogClickListener = DialogInterface.OnClickListener { dialog, which ->
             when (which) {
                 DialogInterface.BUTTON_POSITIVE -> {
-                    motionDnaRuntimeSource?.locationChange(latLan)
+                    latLan?.let { motionDnaRuntimeSource?.locationChange(it) }
                 }
                 DialogInterface.BUTTON_NEGATIVE -> {
                 }
@@ -89,11 +89,20 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             "Calibration : ${log.calibrationStatus}\n" +
                             "lats : ${log.map.lats}\n" +
                             "langs : ${log.map.lngs}\n" +
-                            "localHeading : ${log.location.localHeading}\n"+
-                            "x : ${log.location.localLocation.x}\n"+
-                            "y : ${log.location.localLocation.y}\n"+
-                            "z : ${log.location.localLocation.z}\n"+
-                            "heading : ${log.location.heading}\n"
+                            "lats Local: ${log.location.globalLocation.latitude}\n" +
+                            "langs Local: ${log.location.globalLocation.longitude}\n" +
+                            "lats Global: ${log.gpsLocation.globalLocation.latitude}\n" +
+                            "langs Global: ${log.gpsLocation.globalLocation.longitude}\n" +
+                            "x1 : ${log.location.localLocation.x}\n" +
+                            "y1 : ${log.location.localLocation.y}\n" +
+                            "z1 : ${log.location.localLocation.z}\n" +
+                            "x2 : ${(log.location.localLocation.x * 1e5).roundToInt() / 1e5}\n" +
+                            "y2 : ${(log.location.localLocation.y * 1e5).roundToInt() / 1e5}\n" +
+                            "z3 : ${log.gpsLocation.localLocation.z}\n" +
+                            "vertical motion :${log.location.verticalMotionStatus.name}\n" +
+                            "heading : ${log.location.heading}\n" +
+                            "selected lat : ${latLan?.latitude} \n" +
+                            "selected lon : ${latLan?.longitude}"
                     findViewById<TextView>(R.id.logCat).text = logs
                 }
             })
@@ -102,11 +111,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 //Follow positioning
                 it.cameraMode = CameraMode.TRACKING
                 // Renders position only not heading.
-                it.renderMode = RenderMode.NORMAL
+                it.renderMode = RenderMode.COMPASS
                 lifecycle.addObserver(it)
-                it.addOnLocationStaleListener {
-                    //                    Toast.makeText(this@MainActivity, it.toString(), Toast.LENGTH_SHORT).show()
-                }
                 it.addOnLocationLongClickListener {
                     //sync
                     motionDnaRuntimeSource?.syncWithGPS()
