@@ -30,10 +30,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     lateinit var mapboxMap: MapboxMap
     lateinit var buildingPlugin: BuildingPlugin
     var motionDnaRuntimeSource: MotionDnaDataSource? = null
-
     // Your Navisens developer key
     val navisensDevKey = "s1Oz2c0TCwZYvjvBeOUeq8dGlzkAM6OaE10e2YKsFpULyxAqxDNqbV2Mz3K1Li9I"
-
     // Your mapbox token
     val mapBoxToken = "pk.eyJ1IjoiZG9ueW51cmFuc3lhaCIsImEiOiJjajNwMTBtdTYwMHAwMnduNGxybzdid2Z4In0.tjLzArV7DvhF9Nr1jxX4nQ"
 

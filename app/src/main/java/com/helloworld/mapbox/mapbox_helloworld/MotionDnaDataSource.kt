@@ -146,14 +146,11 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
             motionDna?.let {
                 val dy = it.location?.localLocation?.y!! / meter
                 val dx = it.location?.localLocation?.x!! / meter
-                val latitude = it.location?.globalLocation?.latitude!!
-                val longitude = it.location?.globalLocation?.longitude!!
-
-                val newLatitude = latitude + (dy / rearth) * (180 / pi)
-                val newLongitude = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
-
-                location.latitude = newLatitude
-                location.longitude = newLongitude
+                val latitude = it.location?.getCurrentLat()!!
+                val longitude = it.location?.getCurrentLon()!!
+                //set to current latlon
+                location.latitude = latitude + (dy / rearth) * (180 / pi)
+                location.longitude = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
             }
         }
 
@@ -201,4 +198,12 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
     override fun getPkgManager(): PackageManager {
         return this.pkg
     }
+}
+
+private fun MotionDna.Location.getCurrentLon(): Double {
+    return this.globalLocation?.longitude!!
+}
+
+private fun MotionDna.Location.getCurrentLat(): Double {
+    return this.globalLocation?.latitude!!
 }
