@@ -30,10 +30,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     lateinit var mapboxMap: MapboxMap
     lateinit var buildingPlugin: BuildingPlugin
     var motionDnaRuntimeSource: MotionDnaDataSource? = null
-    // Your Navisens developer key
-    val navisensDevKey = "s1Oz2c0TCwZYvjvBeOUeq8dGlzkAM6OaE10e2YKsFpULyxAqxDNqbV2Mz3K1Li9I"
     // Your mapbox token
-    val mapBoxToken = "pk.eyJ1IjoiZG9ueW51cmFuc3lhaCIsImEiOiJjajNwMTBtdTYwMHAwMnduNGxybzdid2Z4In0.tjLzArV7DvhF9Nr1jxX4nQ"
 
 
     override fun onMapReady(mapboxMap: MapboxMap?) {
@@ -67,7 +64,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     companion object {
-        private val REQUEST_MDNA_PERMISSIONS = 1
+        const val REQUEST_MDNA_PERMISSIONS = 1
+        // Your Navisens developer key
+        const val navisensDevKey = "s1Oz2c0TCwZYvjvBeOUeq8dGlzkAM6OaE10e2YKsFpULyxAqxDNqbV2Mz3K1Li9I"
+        const val mapBoxToken = "pk.eyJ1IjoiZG9ueW51cmFuc3lhaCIsImEiOiJjajNwMTBtdTYwMHAwMnduNGxybzdid2Z4In0.tjLzArV7DvhF9Nr1jxX4nQ"
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun initNavi() {
         try {
-            motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, navisensDevKey, object : MotionDnaDataSource.logListener {
+            motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, Companion.navisensDevKey, object : MotionDnaDataSource.logListener {
                 override fun log(log: MotionDna) {
                     val logs = "Type : ${log.motion.motionType}\n" +
                             "Step : ${log.motion.stepFrequency}\n" +
