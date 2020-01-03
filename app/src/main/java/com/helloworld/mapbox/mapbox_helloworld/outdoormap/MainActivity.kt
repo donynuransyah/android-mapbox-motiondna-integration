@@ -1,4 +1,4 @@
-package com.helloworld.mapbox.mapbox_helloworld
+package com.helloworld.mapbox.mapbox_helloworld.outdoormap
 
 import android.content.DialogInterface
 import android.os.Bundle
@@ -8,6 +8,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import com.helloworld.mapbox.mapbox_helloworld.BuildConfig
+import com.helloworld.mapbox.mapbox_helloworld.R
 import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.maps.MapView
@@ -48,15 +50,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     latLan?.let { motionDnaRuntimeSource?.locationChange(it) }
                 }
                 DialogInterface.BUTTON_NEGATIVE -> {
+                    motionDnaRuntimeSource?.syncWithGPS()
                 }
             }
         }
         this.mapboxMap.addOnMapLongClickListener {
             latLan = it
             val builder: AlertDialog.Builder = AlertDialog.Builder(this@MainActivity)
-            builder.setMessage("Sync your location to this position ?")
-                    .setPositiveButton("Yes", dialogClickListener)
-                    .setNegativeButton("No", dialogClickListener)
+            builder.setMessage("Sync your location ?")
+                    .setPositiveButton("Sync with Tap location", dialogClickListener)
+                    .setNegativeButton("Sync with GPS", dialogClickListener)
                     .show()
         }
 
@@ -79,7 +82,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun initNavi() {
         try {
-            motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, Companion.navisensDevKey, object : MotionDnaDataSource.logListener {
+            motionDnaRuntimeSource = MotionDnaDataSource(applicationContext, packageManager, navisensDevKey, object : MotionDnaDataSource.logListener {
                 override fun log(log: MotionDna) {
                     val logs = "Type : ${log.motion.motionType}\n" +
                             "Step : ${log.motion.stepFrequency}\n" +
@@ -91,8 +94,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             "langs Local: ${log.location.globalLocation.longitude}\n" +
                             "lats Global: ${log.gpsLocation.globalLocation.latitude}\n" +
                             "langs Global: ${log.gpsLocation.globalLocation.longitude}\n" +
-                            "x1 : ${log.location.localLocation.x}\n" +
-                            "y1 : ${log.location.localLocation.y}\n" +
+                            "x1 : ${log.location.localLocation.x/1000}\n" +
+                            "y1 : ${log.location.localLocation.y/1000}\n" +
                             "z1 : ${log.location.localLocation.z}\n" +
                             "x2 : ${(log.location.localLocation.x * 1e5).roundToInt() / 1e5}\n" +
                             "y2 : ${(log.location.localLocation.y * 1e5).roundToInt() / 1e5}\n" +
@@ -109,10 +112,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 //Follow positioning
                 it.cameraMode = CameraMode.TRACKING
                 // Renders position only not heading.
-                it.renderMode = RenderMode.GPS
+                it.renderMode = RenderMode.COMPASS
                 lifecycle.addObserver(it)
                 it.addOnLocationLongClickListener {
-                    //sync
                     motionDnaRuntimeSource?.syncWithGPS()
                     Toast.makeText(this@MainActivity, "Long Click", Toast.LENGTH_SHORT).show()
                 }

@@ -1,4 +1,4 @@
-package com.helloworld.mapbox.mapbox_helloworld
+package com.helloworld.mapbox.mapbox_helloworld.outdoormap
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -12,8 +12,6 @@ import com.navisens.motiondnaapi.MotionDna
 import com.navisens.motiondnaapi.MotionDnaApplication
 import com.navisens.motiondnaapi.MotionDnaInterface
 import timber.log.Timber
-import java.math.RoundingMode
-import java.text.DecimalFormat
 import kotlin.math.cos
 
 class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
@@ -49,7 +47,10 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         fun log(log: MotionDna)
     }
 
-    private val meter = 1000
+    private var mLatLng: LatLng? = null
+    private var mMotionDNA: MotionDna? = null
+    private lateinit var mLocation: Location
+    private val meter = 500
     val rearth = 6378.137
     val pi = Math.PI
     private var locationchange: Boolean = false
@@ -77,8 +78,6 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         app.setExternalPositioningState(MotionDna.ExternalPositioningState.HIGH_ACCURACY)
         // Trigger inertial engine to run with global positional corrections.
         app.setLocationNavisens()
-        // Trigger inertial engine to run in pure inertial from given lat lon and heading.
-//        app.setLocationLatitudeLongitudeAndHeadingInDegrees(-6.31694, 106.66417, 315.0)
     }
 
 
@@ -87,9 +86,7 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
     }
 
     override fun receiveNetworkData(p0: MotionDna?) {
-        Log.e(javaClass.simpleName, "Motion ${p0?.motion?.motionType?.name}")
-        Log.e(javaClass.simpleName, "Motion ${p0?.motion?.motionType?.ordinal}")
-        Log.e(javaClass.simpleName, "Motion ${p0?.motion?.stepFrequency}")
+
     }
 
     fun locationChange(latLng: LatLng) {
@@ -102,9 +99,10 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
     }
 
     override fun receiveNetworkData(p0: MotionDna.NetworkCode?, p1: MutableMap<String, out Any>?) {
-        Log.e(javaClass.simpleName, "Motion ${p0?.name}")
-        Log.e(javaClass.simpleName, "Motion ${p0?.ordinal}")
     }
+
+    fun getMotionDNA(): MotionDna = mMotionDNA!!
+
 
     @SuppressLint("LogNotTimber")
     override fun receiveMotionDna(motionDna: MotionDna?) {
@@ -114,60 +112,58 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
         Timber.e("Sync Local lat : ${motionDna.getLocalLocation()?.globalLocation!!.latitude}")
         Timber.e("Sync Local lon : ${motionDna.getLocalLocation()?.globalLocation!!.longitude}")
 
-        var location = Location("NAVISENS_LOCATION_PROVIDER")
-        motionDna?.let { log.log(it) }
+        mLocation = Location("NAVISENS_LOCATION_PROVIDER")
+        motionDna?.let {
+            log.log(it)
+            mMotionDNA = it
+        }
         if (syncGPS) {
-            motionDna?.let {
-                //Sync with currency Location
-                location.reset()
-                location.latitude = it.gpsLocation?.globalLocation?.latitude!!
-                location.longitude = it.gpsLocation?.globalLocation?.longitude!!
+            mMotionDNA?.let {
+                mLocation.reset()
+                mLocation.latitude = it.gpsLocation?.globalLocation?.latitude!!
+                mLocation.longitude = it.gpsLocation?.globalLocation?.longitude!!
             }
             locationchange = false
             syncGPS = false
         } else if (locationchange) {
-            motionDna?.let {
-                it.location.localLocation.clear()
-                location.reset()
-                app.resetLocalEstimation()
-                app.resetLocalHeading()
-
-                location.latitude = latLng?.latitude!!
-                location.longitude = latLng?.longitude!!
-                app.setLocationLatitudeLongitude(location.latitude, location.longitude)
-                app.setLocationLatitudeLongitudeAndHeadingInDegrees(location.latitude, location.longitude, 315.0)
-
+            //manual set location
+            mMotionDNA?.let {
+                it.invalidateLocation()
+                mLocation.latitude = latLng?.latitude!!
+                mLocation.longitude = latLng?.longitude!!
+                app.setLocationLatitudeLongitude(mLocation.latitude, mLocation.longitude)
+                app.setLocationLatitudeLongitudeAndHeadingInDegrees(mLocation.latitude, mLocation.longitude, it.location.heading)
                 if (it.movedSuccess()) {
                     locationchange = false
                 }
             }
         } else {
-            Timber.e("${latLng?.latitude} : ${location.latitude} : ${motionDna?.location?.globalLocation?.latitude!!}: ${motionDna?.gpsLocation?.globalLocation?.latitude!!}")
-            motionDna?.let {
-                val dy = it.location?.localLocation?.y!! / meter
-                val dx = it.location?.localLocation?.x!! / meter
+            //start walking
+            mMotionDNA?.let {
+                Timber.e("${latLng?.latitude} : ${mLocation.latitude} : ${it.location?.globalLocation?.latitude!!}: ${it.gpsLocation?.globalLocation?.latitude!!}")
                 val latitude = it.location?.getCurrentLat()!!
                 val longitude = it.location?.getCurrentLon()!!
+                val dy = it.location?.localLocation?.y!! / meter
+                val dx = it.location?.localLocation?.x!! / meter
                 //set to current latlon
-                location.latitude = latitude + (dy / rearth) * (180 / pi)
-                location.longitude = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
+                val stepLat = latitude + (dy / rearth) * (180 / pi)
+                val stepLong = longitude + (dx / rearth) * (180 / pi) / cos(latitude * pi / 180)
+                mLatLng = LatLng(stepLat, stepLong, it.location.globalLocation.altitude)
+                with(mLocation) {
+                    mLatLng?.let {
+                        this.latitude = it.latitude
+                        this.longitude = it.longitude
+                        this.altitude = it.altitude
+                        mMotionDNA?.motion?.stepFrequency?.toFloat()?.let {
+                            this.speed = it
+                        }
+                    }
+                }
             }
-        }
-
-        // MotionDna to android.location object conversion
-        motionDna?.let {
-            location.bearing = it.location.heading.toFloat() // Bearing doesn't seemed to be used in COMPASS rendering however it is used in GPS render mode.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                location.bearingAccuracyDegrees = 1.0.toFloat()
-            }
-            location.altitude = it.location.absoluteAltitude
-            location.accuracy = it.location.uncertainty.x.toFloat()
-            location.time = it.timestamp.toLong()
-            location.speed = it.motion.stepFrequency.toFloat()
         }
         var i = 0
         while (i < locationListeners.size) {
-            locationListeners[i].onLocationChanged(location)
+            locationListeners[i].onLocationChanged(mLocation)
             ++i
         }
     }
@@ -198,7 +194,16 @@ class MotionDnaDataSource : MotionDnaInterface, LocationEngine {
     override fun getPkgManager(): PackageManager {
         return this.pkg
     }
+
+    private fun MotionDna.invalidateLocation() {
+        this.location.localLocation.clear()
+        mLocation.reset()
+        app.resetLocalEstimation()
+        app.resetLocalHeading()
+
+    }
 }
+
 
 private fun MotionDna.Location.getCurrentLon(): Double {
     return this.globalLocation?.longitude!!

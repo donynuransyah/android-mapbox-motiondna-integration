@@ -21,7 +21,13 @@ allprojects {
         google()
         jcenter()
         mavenCentral()
-
+        // Repositories for motiondnaapi SDK
+        maven {
+            url 'https://oss.sonatype.org/content/groups/public'
+        }
+        maven {
+            url 'https://raw.github.com/navisens/Android-Plugin/repositories'
+        }
     }
 }
 
